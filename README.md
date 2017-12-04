@@ -27,3 +27,7 @@ from the specified folder. It then validates that the exported objects are funct
 Specified arguments (**does only work when the functions are implemented
 using the `function` keyword**) are then extracted - these will be required to be sent using query-parameters. Based on the folder-structure, the `*.js` and `*.jsx` files
 can be invoked using a basic HTTP GET request.
+
+## Planned Features
+- [] Support for functions that return **Promises**
+- [] Dynamic Argument Sources: **body**, **headers**
