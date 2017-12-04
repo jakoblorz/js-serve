@@ -16,29 +16,34 @@ const filterFilePathByExtname = (allowedExtnames) =>
     (file) => allowedExtnames.indexOf(path.extname(file)) !== -1;
 
 /**
+ * append an array or plain value to another array
+ * @param {any[]} array list of already processed elements
+ * @param {any | any[]} insertionVal value to append to the list of already processed elements
+ */
+const reduceMultiDimensionalArray = (array, insertionVal) =>
+    insertionVal instanceof Array ? array.concat(insertionVal) : array.concat([insertionVal]);
+
+/**
  * scan a directory for files recursively, returning a list of all files 
- * @param {string} dir directory path to start scanning for files
- * @param {string} pathExtension not required when calling manually - stores the offset from the
+ * @param {string} basePath directory path to start scanning for files
+ * @param {string} relPath not required when calling manually - stores the offset from the
  * initial dir path
  */
-const readDirRecursive = (dir, pathExtension = "/") =>
-    fs.readdirSync(dir)
+const readDirRecursive = (basePath, relPath = "/") =>
+    fs.readdirSync(path.join(basePath, relPath))
+        .map((file) => ((_relFilePath) => fs.statSync(path.join(basePath, _relFilePath)).isDirectory() ?
+            readDirRecursive(basePath, _relFilePath) : _relFilePath)(path.join(relPath, file)))
+        .reduce(reduceMultiDimensionalArray, []);
 
-        // readDirSync returns files as well as directories - recurse into the directories
-        .map((file) => ((_file) => fs.statSync(_file).isDirectory() ?
-            readDirRecursive(_file, path.join(pathExtension, file)) : file)(path.join(dir, file)))
-
-        // reduce the (string | string[])[] into a proper string[] with correctly offsetted
-        // filenames representing the offset from the base folder
-        .reduce((files, file) => file instanceof Array ?
-            files.concat(file.map((file) => path.join(pathExtension, file))) :
-            files.concat([path.join(pathExtension, file)]), []);
-
+/**
+ * get a list of the arguments of a function
+ * @param {Function} fn function to extract the required arguments from
+ */
 const extractFunctionArguments = (fn) =>
-    ((_args) => _args.length === 1 && _args[0] === "" ? [] : _args)(
-        (fn.toString().replace(/((\/\/.*$)|(\/\*[\s\S]*?\*\/)|(\s))/mg, "")
-            .match(/^function\s*[^\(]*\(\s*([^\)]*)\)/m))[1]
-            .split(/,/));
+    ((_args) => _args.length === 1 && _args[0] === "" ? [] : _args)((fn.toString()
+        .replace(/((\/\/.*$)|(\/\*[\s\S]*?\*\/)|(\s))/mg, "")
+        .match(/^function\s*[^\(]*\(\s*([^\)]*)\)/m))[1]
+        .split(/,/));
         
 const arrayFileStringOperation = (fn) =>
     (array) => array.length > 0 ? array.concat([fn(array[0], array)]) : array;
@@ -69,6 +74,8 @@ const views = readDirRecursive(_viewFolder)
 
     // replace the array with a object
     .map((array) => ({ file: array[0], handler: array[1], args: array[2], path: array[3] }));
+
+console.log(views);
 
 const server = http.createServer((req, res) => {
     req.url = req.url || "/";
