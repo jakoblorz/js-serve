@@ -29,5 +29,5 @@ using the `function` keyword**) are then extracted - these will be required to b
 can be invoked using a basic HTTP GET request.
 
 ## Planned Features
-- [] Support for functions that return **Promises**
-- [] Dynamic Argument Sources: **body**, **headers**
+- [ ] Support for functions that return **Promises**
+- [ ] Dynamic Argument Sources: **body**, **headers**
