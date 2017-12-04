@@ -24,16 +24,23 @@ const reduceMultiDimensionalArray = (array, insertionVal) =>
     insertionVal instanceof Array ? array.concat(insertionVal) : array.concat([insertionVal]);
 
 /**
+ * check if a path points to a file or a directory
+ * @param {string} file path to a file or a directory
+ */
+const fileIsDirectory = (file) =>
+    fs.statSync(file).isDirectory();
+
+/**
  * scan a directory for files recursively, returning a list of all files 
  * @param {string} basePath directory path to start scanning for files
  * @param {string} relPath not required when calling manually - stores the offset from the
  * initial dir path
  */
 const readDirRecursive = (basePath, relPath = "/") =>
-    fs.readdirSync(path.join(basePath, relPath))
-        .map((file) => ((_relFilePath) => fs.statSync(path.join(basePath, _relFilePath)).isDirectory() ?
-            readDirRecursive(basePath, _relFilePath) : _relFilePath)(path.join(relPath, file)))
-        .reduce(reduceMultiDimensionalArray, []);
+    ((_level) => fs.readdirSync(_level)
+        .map((file) => fileIsDirectory(path.join(_level, file)) ?
+            readDirRecursive(basePath, path.join(relPath, file)) : path.join(relPath, file))
+        .reduce(reduceMultiDimensionalArray, []))(path.join(basePath, relPath));
 
 /**
  * get a list of the arguments of a function
@@ -44,14 +51,27 @@ const extractFunctionArguments = (fn) =>
         .replace(/((\/\/.*$)|(\/\*[\s\S]*?\*\/)|(\s))/mg, "")
         .match(/^function\s*[^\(]*\(\s*([^\)]*)\)/m))[1]
         .split(/,/));
-        
+
+/**
+ * Create an operation on an array which requires the first array value. The result will be
+ * appended to the array
+ * @param {Function} fn callback that is invoked using the invoked array element at position
+ * 1 as first argument and full array as second argument
+ */
 const arrayFileStringOperation = (fn) =>
     (array) => array.length > 0 ? array.concat([fn(array[0], array)]) : array;
-        
+
+/**
+ * creates a filter function to filter all views that are registered at
+ * the url
+ * @param {string[]} urlPathArray list of url sections (split be /)
+ */
 const matchViewToPath = (urlPathArray) =>
-    (view) => urlPathArray.filter((currentPathSection, index) =>
-        view.path[index] === currentPathSection).length === urlPathArray.length && urlPathArray.length === view.path.length;
-    
+    (view) => urlPathArray.length === view.path.length && urlPathArray
+        .filter((currentPathSection, index) =>
+            view.path[index] === currentPathSection)
+        .length === urlPathArray.length;
+
 const views = readDirRecursive(_viewFolder)
 
     // filter all files out that do not end with .js or .jsx
@@ -75,26 +95,31 @@ const views = readDirRecursive(_viewFolder)
     // replace the array with a object
     .map((array) => ({ file: array[0], handler: array[1], args: array[2], path: array[3] }));
 
-console.log(views);
-
 const server = http.createServer((req, res) => {
+
+    // prevent req.url === undefined errors
     req.url = req.url || "/";
 
+    // try to find a view that matches the url
     const view = views.filter(matchViewToPath(req.url.slice(1, ((index) =>
         index === -1 ? undefined : index)(req.url.indexOf("?"))).split("/")))[0];
-    
+
+    // return an error if no view was found
     if (view === undefined) {
         return res.end(JSON.stringify({ error: "no handler found" }));
     }
 
+    // extract the arguments from the request's query, undefined if args are not
+    // sufficient
     const args = ((queryArgs) => Object.keys(queryArgs).length === view.args.length ?
-        view.args.map((arg) => queryArgs[arg]) : undefined)(
-            url.parse(req.url, true).query);
+        view.args.map((arg) => queryArgs[arg]) : undefined)(url.parse(req.url, true).query);
 
+    // if arguments are required but not sufficient, return an error
     if (args === undefined && view.args.length > 0) {
-        return res.end(JSON.stringify({ error: "not enought arguments found" }));
+        return res.end(JSON.stringify({ error: "not enough arguments provided" }));
     }
 
+    // invoke the handler method using the extracted arguments
     res.end(view.handler.apply(null, args));
+
 }).listen(_port, _host);
-    
