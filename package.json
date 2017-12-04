@@ -1,8 +1,11 @@
 {
   "name": "js-serve",
   "version": "1.0.0",
-  "description": "serve *.js and *.jsx files immediately over http",
+  "description": "serve *.js and *.jsx files instantly over http",
   "main": "index.js",
+  "bin": {
+    "js-serve": "index.js"
+  },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
