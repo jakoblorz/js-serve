@@ -3,9 +3,9 @@ const path = require("path");
 const http = require("http");
 const url = require("url");
 
-const _projectRoot = process.argv[2] || process.cwd() || __dirname;
-const _viewFolder = path.join(_projectRoot, "./views");
-const _port = parseInt(process.argv[3] || process.env.PORT || "8585");
+const _projectRoot = process.cwd() || __dirname;
+const _viewFolder = path.join(_projectRoot, process.argv[2] || "./views");
+const _port = parseInt(process.argv[3] || process.env.PORT || "8080");
 const _host = process.argv[4] || process.env.HOSTNAME || "localhost";
 
 /**
