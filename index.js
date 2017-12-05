@@ -14,23 +14,19 @@ const _host = process.argv[4] || process.env.HOSTNAME || "localhost";
  * check if a filename ends with an allowed extname
  * @param {string[]} allowedExtnames list of extnames that are allowed
  */
-const filterFilePathByExtname = (allowedExtnames) =>
-    (file) => allowedExtnames.indexOf(path.extname(file)) !== -1;
-
-/**
- * append an array or plain value to another array
- * @param {any[]} array list of already processed elements
- * @param {any | any[]} insertionVal value to append to the list of already processed elements
- */
-const reduceMultiDimensionalArray = (array, insertionVal) =>
-    insertionVal instanceof Array ? array.concat(insertionVal) : array.concat([insertionVal]);
+const filterFilePathByExtname = function (allowedExtnames) {
+    return function (file) {
+        return allowedExtnames.indexOf(path.extname(file)) !== -1;
+    };
+};
 
 /**
  * check if a path points to a file or a directory
  * @param {string} file path to a file or a directory
  */
-const fileIsDirectory = (file) =>
-    fs.statSync(file).isDirectory();
+const fileIsDirectory = function (file) {
+    return fs.statSync(file).isDirectory();
+};
 
 /**
  * scan a directory for files recursively, returning a list of all files 
@@ -38,41 +34,97 @@ const fileIsDirectory = (file) =>
  * @param {string} relPath not required when calling manually - stores the offset from the
  * initial dir path
  */
-const readDirRecursive = (basePath, relPath = "/") =>
-    ((_level) => fs.readdirSync(_level)
-        .map((file) => fileIsDirectory(path.join(_level, file)) ?
-            readDirRecursive(basePath, path.join(relPath, file)) : path.join(relPath, file))
-        .reduce(reduceMultiDimensionalArray, []))(path.join(basePath, relPath));
+const readDirRecursive = function (basePath, relPath = "/") {
+    const currentLevelDirPath = path.join(basePath, relPath);
+
+    /**
+     * recusively call readDirRecursive if the file argument
+     * is a directory
+     * @param {string} file filename
+     */
+    const conditionalRecursionMap = function (file) {
+        const currentLevelRelativeFilePath = path.join(relPath, file);
+
+        if (fileIsDirectory(path.join(currentLevelDirPath, file))) {
+            return readDirRecursive(basePath, currentLevelRelativeFilePath);
+        }
+
+        return currentLevelRelativeFilePath
+    };
+
+    /**
+     * append an array or plain value to another array
+     * @param {any[]} array list of already processed elements
+     * @param {any | any[]} insertionVal value to append to the list of already processed elements
+     */
+    const reduceMultiDimensionalArray = function (array, insertionVal) {
+        if (insertionVal instanceof Array) {
+            return array.concat(insertionVal);
+        }
+
+        return array.concat([insertionVal]);
+    };
+
+    return fs.readdirSync(currentLevelDirPath)
+        .map(conditionalRecursionMap)
+        .reduce(reduceMultiDimensionalArray, []);
+};
 
 /**
  * get a list of the arguments of a function
  * @param {Function} fn function to extract the required arguments from
  */
-const extractFunctionArguments = (fn) =>
-    ((_args) => _args.length === 1 && _args[0] === "" ? [] : _args)((fn.toString()
+const extractFunctionArguments = function (fn) {
+    const unprocessedArgs = (fn.toString()
         .replace(/((\/\/.*$)|(\/\*[\s\S]*?\*\/)|(\s))/mg, "")
         .match(/^function\s*[^\(]*\(\s*([^\)]*)\)/m))[1]
-        .split(/,/));
+        .split(/,/);
+
+    // regex edge case: when no args are specified, the regex will
+    // return an array with one element which is a empty string
+    if (unprocessedArgs.length === 1 && unprocessedArgs[0] === "") {
+        return [];
+    }
+
+    return unprocessedArgs;
+};
 
 /**
- * Create an operation on an array which requires the first array value. The result will be
+ * create an operation on an array which requires the first array value. The result will be
  * appended to the array
  * @param {Function} fn callback that is invoked using the invoked array element at position
  * 1 as first argument and full array as second argument
+ * @param {number} argPosition specify the first arguments position on the input array
  */
-const arrayFileStringOperation = (fn) =>
-    (array) => array.length > 0 ? array.concat([fn(array[0], array)]) : array;
+const arrayConcatOperation = function (fn, argPosition = 0) {
+    return function (array) {
+
+        if (array.length > 0) {
+            return array.concat([fn(array[argPosition], array)]);
+        }
+
+        return [];
+    };
+};
 
 /**
  * creates a filter function to filter all views that are registered at
  * the url
  * @param {string[]} urlPathArray list of url sections (split be /)
  */
-const matchViewToPath = (urlPathArray) =>
-    (view) => urlPathArray.length === view.path.length && urlPathArray
-        .filter((currentPathSection, index) =>
-            view.path[index] === currentPathSection)
-        .length === urlPathArray.length;
+const matchViewToPath = function (urlPathArray) {
+    return function (view) {
+        const viewPathHasMatchingLengths = urlPathArray.length === view.path.length;
+
+        const findMatchingPathSections = function () {
+            return urlPathArray.filter((currentPathSection, index) =>
+                view.path[index] === currentPathSection);
+        };
+
+        return viewPathHasMatchingLengths && findMatchingPathSections().length ===
+            urlPathArray.length;
+    };
+};
 
 const views = readDirRecursive(_viewFolder)
 
@@ -83,16 +135,16 @@ const views = readDirRecursive(_viewFolder)
     .map((file) => [file])
 
     // append the required file as second element
-    .map(arrayFileStringOperation((file) => require(path.join(_viewFolder, file))))
+    .map(arrayConcatOperation((file) => require(path.join(_viewFolder, file))))
 
     // filter all arrays out that do not have a function as second element
     .filter((arr) => typeof arr[1] === "function")
 
     // append the function arguments to the array as third element
-    .map(arrayFileStringOperation((file, array) => extractFunctionArguments(array[1])))
+    .map(arrayConcatOperation((fn) => extractFunctionArguments(fn), 1))
 
     // append the relative file path as splitted string array to the array as fourth element
-    .map(arrayFileStringOperation((file) => (file[0] === "/" ? file.slice(1) : file).split("/")))
+    .map(arrayConcatOperation((file) => (file[0] === "/" ? file.slice(1) : file).split("/")))
 
     // replace the array with a object
     .map((array) => ({ file: array[0], handler: array[1], args: array[2], path: array[3] }));
