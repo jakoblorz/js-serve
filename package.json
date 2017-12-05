@@ -1,6 +1,6 @@
 {
   "name": "js-serve",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "serve *.js and *.jsx files instantly over http",
   "main": "index.js",
   "bin": {
