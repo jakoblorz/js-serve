@@ -126,27 +126,17 @@ const matchViewToPath = function (urlPathArray) {
     };
 };
 
+const isPromise = function (val) {
+    return typeof val === "object" && !!val.then && typeof val.then === 'function';
+}
+
 const views = readDirRecursive(_viewFolder)
-
-    // filter all files out that do not end with .js or .jsx
     .filter(filterFilePathByExtname([".js", ".jsx"]))
-
-    // map each file into an array with the filepath as first element
     .map((file) => [file])
-
-    // append the required file as second element
-    .map(arrayConcatOperation((file) => require(path.join(_viewFolder, file))))
-
-    // filter all arrays out that do not have a function as second element
+    .map(arrayConcatOperation((file) => require(path.join(_viewFolder, file)), 0))
     .filter((arr) => typeof arr[1] === "function")
-
-    // append the function arguments to the array as third element
     .map(arrayConcatOperation((fn) => extractFunctionArguments(fn), 1))
-
-    // append the relative file path as splitted string array to the array as fourth element
-    .map(arrayConcatOperation((file) => (file[0] === "/" ? file.slice(1) : file).split("/")))
-
-    // replace the array with a object
+    .map(arrayConcatOperation((file) => (file[0] === "/" ? file.slice(1) : file).split("/"), 0))
     .map((array) => ({ file: array[0], handler: array[1], args: array[2], path: array[3] }));
 
 const server = http.createServer((req, res) => {
@@ -154,9 +144,12 @@ const server = http.createServer((req, res) => {
     // prevent req.url === undefined errors
     req.url = req.url || "/";
 
-    // try to find a view that matches the url
-    const view = views.filter(matchViewToPath(req.url.slice(1, ((index) =>
-        index === -1 ? undefined : index)(req.url.indexOf("?"))).split("/")))[0];
+    // create a splitted path-section array
+    const urlFullQualifiedPathSections = req.url.slice(1, ((index) =>
+        index === -1 ? undefined : index)(req.url.indexOf("?"))).split("/");
+
+    // try to find a view that matches the url path-sections
+    const view = views.filter(matchViewToPath(urlFullQualifiedPathSections))[0];
 
     // return an error if no view was found
     if (view === undefined) {
@@ -174,6 +167,19 @@ const server = http.createServer((req, res) => {
     }
 
     // invoke the handler method using the extracted arguments
-    res.end(view.handler.apply(null, args));
+    const possiblePromiseResponse = view.handler.apply(null, args);
+
+    // if the result of the handler is a string or buffer the response is already here
+    if (typeof possiblePromiseResponse === "string" || Buffer.isBuffer(possiblePromiseResponse)) {
+        return res.end(possiblePromiseResponse);
+    }
+
+    if (isPromise(possiblePromiseResponse)) {
+        return possiblePromiseResponse
+            .then((result) => res.end(result))
+            .catch((err) => res.end(JSON.stringify(err)));
+    }
+
+    res.end(JSON.stringify({ error: "handler response not sendable" }));
 
 }).listen(_port, _host);
