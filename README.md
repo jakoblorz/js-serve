@@ -4,7 +4,7 @@ serve `*.js` and `*.jsx` files instantly over http.
 ## Setup
 - Install js-serve: `npm install js-serve`
 - Prepare your **view directory**: `mkdir ./views`
-- Add `*.js` or `*.jsx` files, exporting a `function`:
+- Add `*.js` or `*.jsx` files, exporting a `function` (they now can return a **Promise** as well):
 ```javascript
 // ping.js
 
@@ -29,5 +29,5 @@ using the `function` keyword**) are then extracted - these will be required to b
 can be invoked using a basic HTTP GET request.
 
 ## Planned Features
-- [ ] Support for functions that return **Promises**
+- [x] Support for functions that return **Promises**
 - [ ] Dynamic Argument Sources: **body**, **headers**

@@ -180,6 +180,6 @@ const server = http.createServer((req, res) => {
             .catch((err) => res.end(JSON.stringify(err)));
     }
 
-    res.end(JSON.stringify({ error: "handler response not sendable" }));
+    res.end(JSON.stringify({ error: "handler response not supported" }));
 
 }).listen(_port, _host);
