@@ -1,4 +1,4 @@
-# js-serve
+# jsx-serve
 serve `*.js` and `*.jsx` files instantly over http.
 
 ## Setup
